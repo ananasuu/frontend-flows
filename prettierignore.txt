@@ -1,0 +1,17 @@
+# File extensions ceovered by biome
+*.js
+*.cjs
+*.mjs
+*.ts
+*.mts
+*.json
+*.css
+
+# Prettier is breaking content and comments
+*.mdx
+
+# Documentation files with code examples
+docs/
+
+# Generated files
+package-lock.json

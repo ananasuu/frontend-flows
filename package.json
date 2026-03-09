@@ -1,0 +1,37 @@
+{
+  "name": "frontend-flows",
+  "version": "1.0.0",
+  "description": "My reusable setup for frontend testing and workflows.",
+  "main": "index.js",
+  "scripts": {
+    "lint": "prettier --check --ignore-unknown --no-error-on-unmatched-pattern . && biome ci .",
+    "lint:fix": "prettier --write --ignore-unknown --no-error-on-unmatched-pattern .&& biome check . --write",
+    "git:pre-commit": "lint-staged",
+    "git:pre-push": "npm test",
+    "prepare": "husky",
+    "test": "npx playwright test",
+    "test:visual": "npx chromatic --exit-zero-on-changes --playwright --project-token=$CHROMATIC_PROJECT_TOKEN",
+    "test:a11y": "npx playwright test -g 'a11y'",
+    "test:performance": "npx playwright test -g 'performance'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ananasuu/frontend-flows.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ananasuu/frontend-flows/issues"
+  },
+  "homepage": "https://github.com/ananasuu/frontend-flows#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "axe-playwright": "^2.2.2",
+    "eslint": "^10.0.3",
+    "playwright": "^1.58.2",
+    "prettier": "^3.8.1"
+  }
+}

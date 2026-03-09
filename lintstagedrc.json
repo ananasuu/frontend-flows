@@ -1,0 +1,6 @@
+{
+  "*": [
+    "prettier --write --ignore-unknown",
+    "biome check --write --no-errors-on-unmatched"
+  ]
+}
