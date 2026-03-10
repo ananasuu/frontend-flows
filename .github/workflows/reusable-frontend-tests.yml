@@ -18,6 +18,11 @@ on:
         type: string
         required: false
         default: ""
+      lint-command:
+        description: Optional lint command for the caller repository.
+        type: string
+        required: false
+        default: ""
       start-command:
         description: Start command for the caller application.
         type: string
@@ -49,9 +54,123 @@ on:
         default: false
 
 jobs:
-  e2e:
+  dependency_review:
+    name: Dependency Review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+
+  dependencies:
+    name: Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout frontend-flows
+        uses: actions/checkout@v4
+        with:
+          repository: ananasuu/frontend-flows
+          ref: main
+          path: frontend-flows
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            frontend-flows/package-lock.json
+            ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Install frontend-flows dependencies
+        working-directory: frontend-flows
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend-flows
+        run: npx playwright install --with-deps
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: dependencies
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Build caller app
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -n "${{ inputs.build-command }}" ]; then
+            ${{ inputs.build-command }}
+          else
+            echo "No build-command configured, skipping build step"
+          fi
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: dependencies
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Run lint
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -n "${{ inputs.lint-command }}" ]; then
+            ${{ inputs.lint-command }}
+          else
+            echo "No lint-command configured, skipping lint step"
+          fi
+
+  tests:
+    name: Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs:
+      - dependencies
+      - build
+      - lint
 
     steps:
       - name: Checkout caller repository
@@ -86,9 +205,13 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Build caller app
-        if: ${{ inputs.build-command != '' }}
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.build-command }}
+        run: |
+          if [ -n "${{ inputs.build-command }}" ]; then
+            ${{ inputs.build-command }}
+          else
+            echo "No build-command configured, skipping build step"
+          fi
 
       - name: Start caller app
         working-directory: ${{ inputs.working-directory }}
@@ -135,3 +258,37 @@ jobs:
           if [ -f /tmp/frontend-flows-app.pid ]; then
             kill "$(cat /tmp/frontend-flows-app.pid)" || true
           fi
+
+  consolidate_test_results:
+    name: Consolidate Test Results
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    needs:
+      - dependency_review
+      - dependencies
+      - build
+      - lint
+      - tests
+
+    steps:
+      - name: Summarize results
+        run: |
+          echo "dependency_review=${{ needs.dependency_review.result }}"
+          echo "dependencies=${{ needs.dependencies.result }}"
+          echo "build=${{ needs.build.result }}"
+          echo "lint=${{ needs.lint.result }}"
+          echo "tests=${{ needs.tests.result }}"
+
+          for status in \
+            "${{ needs.dependency_review.result }}" \
+            "${{ needs.dependencies.result }}" \
+            "${{ needs.build.result }}" \
+            "${{ needs.lint.result }}" \
+            "${{ needs.tests.result }}"; do
+            if [ "$status" = "failure" ] || [ "$status" = "cancelled" ]; then
+              echo "One or more required jobs failed"
+              exit 1
+            fi
+          done
+
+          echo "All required jobs passed (or were skipped when not applicable)."
