@@ -19,10 +19,10 @@ on:
         required: false
         default: npm run build
       lint-command:
-        description: Lint command for the caller repository.
+        description: Lint command for the caller repository. Use 'auto' to run frontend-flows default lint.
         type: string
         required: false
-        default: npm run lint
+        default: auto
       start-command:
         description: Start command for the caller application.
         type: string

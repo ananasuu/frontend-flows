@@ -65,7 +65,7 @@ jobs:
       working-directory: .
       install-command: npm ci
       build-command: npm run build
-      lint-command: npm run lint
+      lint-command: auto
       start-command: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url: http://127.0.0.1:4173
       urls: auto
@@ -124,7 +124,7 @@ bash scripts/bootstrap-consumer-workflow.sh \
   --working-directory apps/web \
   --install-command "npm ci" \
   --build-command "npm run build" \
-  --lint-command "npm run lint" \
+  --lint-command "auto" \
   --start-command "npm run start:prod -- --host 127.0.0.1 --port 4321" \
   --base-url "http://127.0.0.1:4321" \
   --urls "auto"
@@ -160,12 +160,27 @@ Unterstuetzte Flags:
 
 - `install-command`: Install-Befehl im Ziel-Repo (z. B. `npm ci`)
 - `build-command`: Build-Befehl (Default: `npm run build`)
-- `lint-command`: Lint-Befehl (Default: `npm run lint`)
+- `lint-command`: Lint-Befehl. Default `auto` fuehrt den eingebauten Lint aus diesem Repo aus (Prettier + Biome via `npx`). Du kannst stattdessen einen eigenen Befehl setzen (z. B. `npm run lint` oder `pnpm lint`).
 - `start-command`: Startbefehl fuer die App (Default: `npm run start:prod -- --host 127.0.0.1 --port 4173`)
 - `base-url`: URL, unter der die App im Runner erreichbar ist
 - `urls`: Komma-separierte Routen oder `auto` (Default, Sitemap-basiert)
 - `grep`: Optionales Playwright-Filterpattern
 - `enable-lighthouse`: `true` oder `false`
+
+### Was macht `lint-command: auto`?
+
+Wenn `lint-command` auf `auto` steht (Default), fuehrt `PR Lint` direkt diese Checks aus:
+
+- `npx --yes prettier@3 --check --ignore-unknown --no-error-on-unmatched-pattern .`
+- `npx --yes @biomejs/biome@1.9.4 lint .`
+
+Dadurch brauchst du im Ziel-Repo kein eigenes `lint`-Script in `package.json`.
+
+Wenn du stattdessen deinen Projekt-Linter verwenden willst, setze `lint-command` explizit, z. B.:
+
+```yaml
+lint-command: npm run lint
+```
 
 ## Wann darf Build optional sein?
 
@@ -258,7 +273,7 @@ jobs:
       working-directory: .
       install-command: npm ci
       build-command: npm run build
-      lint-command: npm run lint
+      lint-command: auto
       start-command: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url: http://127.0.0.1:4173
       urls: auto

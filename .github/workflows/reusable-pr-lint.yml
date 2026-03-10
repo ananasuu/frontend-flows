@@ -18,7 +18,7 @@ on:
       lint-command:
         type: string
         required: false
-        default: npm run lint
+        default: auto
 
 jobs:
   pr_lint:
@@ -42,4 +42,17 @@ jobs:
 
       - name: Run lint
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.lint-command }}
+        env:
+          LINT_COMMAND: ${{ inputs.lint-command }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${LINT_COMMAND// }" || "$LINT_COMMAND" == "auto" ]]; then
+            echo "Running default frontend-flows lint (Prettier + Biome via npx)."
+            npx --yes prettier@3 --check --ignore-unknown --no-error-on-unmatched-pattern .
+            npx --yes @biomejs/biome@1.9.4 lint .
+            exit 0
+          fi
+
+          echo "Running lint command: $LINT_COMMAND"
+          bash -lc "$LINT_COMMAND"
