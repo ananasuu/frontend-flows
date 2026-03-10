@@ -13,6 +13,7 @@ START_COMMAND="npm run start:prod -- --host 127.0.0.1 --port 4173"
 BASE_URL="http://127.0.0.1:4173"
 URLS="auto"
 ADD_LINT_SCRIPTS=true
+BIOME_SKIP_RULES=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,6 +43,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --lint-command)
       LINT_COMMAND="$2"
+      shift 2
+      ;;
+    --biome-skip-rules)
+      BIOME_SKIP_RULES="$2"
       shift 2
       ;;
     --start-command)
@@ -74,6 +79,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --install-command <value>"
       echo "  --build-command <value>"
       echo "  --lint-command <value>"
+      echo "  --biome-skip-rules <value>"
       echo "  --start-command <value>"
       echo "  --base-url <value>"
       echo "  --urls <value>"
@@ -109,6 +115,7 @@ jobs:
       install-command: $INSTALL_COMMAND
       build-command: $BUILD_COMMAND
       lint-command: $LINT_COMMAND
+      biome-skip-rules: "$BIOME_SKIP_RULES"
       start-command: $START_COMMAND
       base-url: $BASE_URL
       urls: "$URLS"
@@ -182,15 +189,60 @@ if [[ "$ADD_LINT_SCRIPTS" == "true" ]]; then
   fi
 
   PACKAGE_JSON_PATH="$WORKING_DIRECTORY/package.json"
+  PRETTIER_RC_PATH="$WORKING_DIRECTORY/.prettierrc"
+  PRETTIER_IGNORE_PATH="$WORKING_DIRECTORY/.prettierignore"
   if [[ ! -f "$PACKAGE_JSON_PATH" ]]; then
     echo "Cannot add scripts because package.json was not found at: $PACKAGE_JSON_PATH"
     exit 1
   fi
 
-  echo "Adding scripts.format and scripts.lint to $PACKAGE_JSON_PATH"
+  echo "Adding Prettier dependency and npm scripts to $PACKAGE_JSON_PATH"
   npm --prefix "$WORKING_DIRECTORY" pkg set \
-    scripts.format="npx --yes prettier@3 --write --ignore-unknown --no-error-on-unmatched-pattern ." \
-    scripts.lint="npx --yes prettier@3 --check --ignore-unknown --no-error-on-unmatched-pattern . && npx --yes @biomejs/biome@1.9.4 lint ."
+    devDependencies.prettier="^3.8.1" \
+    scripts.format="prettier --write --ignore-unknown --no-error-on-unmatched-pattern ." \
+    scripts.lint="prettier --check --ignore-unknown --no-error-on-unmatched-pattern . && npx --yes @biomejs/biome@1.9.4 lint ."
+
+  if [[ ! -f "$PRETTIER_RC_PATH" ]]; then
+    cat > "$PRETTIER_RC_PATH" <<'JSON'
+{
+  "bracketSpacing": true,
+  "printWidth": 120,
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "none",
+  "useTabs": true
+}
+JSON
+    echo "Created $PRETTIER_RC_PATH"
+  else
+    echo "Keeping existing $PRETTIER_RC_PATH"
+  fi
+
+  if [[ ! -f "$PRETTIER_IGNORE_PATH" ]]; then
+    cat > "$PRETTIER_IGNORE_PATH" <<'TXT'
+# File extensions covered by biome
+*.js
+*.cjs
+*.mjs
+*.ts
+*.mts
+*.json
+*.css
+
+# Prettier may break content and comments
+*.mdx
+
+# Documentation files with code examples
+docs/
+
+# Generated files
+package-lock.json
+TXT
+    echo "Created $PRETTIER_IGNORE_PATH"
+  else
+    echo "Keeping existing $PRETTIER_IGNORE_PATH"
+  fi
 fi
 
 echo "Created $WORKFLOW_PATH"
@@ -199,6 +251,7 @@ if [[ "$WITH_PROJECT_E2E" == "true" ]]; then
 fi
 if [[ "$ADD_LINT_SCRIPTS" == "true" ]]; then
   echo "Added npm scripts: format, lint"
+  echo "Ensured devDependency: prettier"
 fi
 echo "Defaults used:"
 echo "  node-version=$NODE_VERSION"
@@ -206,6 +259,7 @@ echo "  working-directory=$WORKING_DIRECTORY"
 echo "  install-command=$INSTALL_COMMAND"
 echo "  build-command=$BUILD_COMMAND"
 echo "  lint-command=$LINT_COMMAND"
+echo "  biome-skip-rules=$BIOME_SKIP_RULES"
 echo "  start-command=$START_COMMAND"
 echo "  base-url=$BASE_URL"
 echo "  urls=$URLS"

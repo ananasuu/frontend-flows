@@ -19,6 +19,10 @@ on:
         type: string
         required: false
         default: auto
+      biome-skip-rules:
+        type: string
+        required: false
+        default: ""
 
 jobs:
   pr_lint:
@@ -44,13 +48,21 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         env:
           LINT_COMMAND: ${{ inputs.lint-command }}
+          BIOME_SKIP_RULES: ${{ inputs.biome-skip-rules }}
         run: |
           set -euo pipefail
 
           if [[ -z "${LINT_COMMAND// }" || "$LINT_COMMAND" == "auto" ]]; then
             echo "Running default frontend-flows lint (Prettier + Biome via npx)."
             npx --yes prettier@3 --check --ignore-unknown --no-error-on-unmatched-pattern .
-            npx --yes @biomejs/biome@1.9.4 lint .
+
+            BIOME_ARGS=()
+            if [[ -n "${BIOME_SKIP_RULES// }" ]]; then
+              echo "Applying Biome skips: $BIOME_SKIP_RULES"
+              BIOME_ARGS+=("--skip=$BIOME_SKIP_RULES")
+            fi
+
+            npx --yes @biomejs/biome@1.9.4 lint . "${BIOME_ARGS[@]}"
             exit 0
           fi
 

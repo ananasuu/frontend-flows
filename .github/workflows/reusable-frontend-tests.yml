@@ -23,6 +23,11 @@ on:
         type: string
         required: false
         default: auto
+      biome-skip-rules:
+        description: Comma-separated Biome rule IDs to skip when lint-command is 'auto'.
+        type: string
+        required: false
+        default: ""
       start-command:
         description: Start command for the caller application.
         type: string
@@ -86,6 +91,7 @@ jobs:
       install-command: ${{ inputs.install-command }}
       working-directory: ${{ inputs.working-directory }}
       lint-command: ${{ inputs.lint-command }}
+      biome-skip-rules: ${{ inputs.biome-skip-rules }}
 
   npm_test:
     name: NPM Test

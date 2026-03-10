@@ -104,7 +104,8 @@ curl -fsSL https://raw.githubusercontent.com/ananasuu/frontend-flows/main/script
   --urls "auto"
 ```
 
-Das Skript traegt standardmaessig `scripts.format` und `scripts.lint` in `package.json` ein.
+Das Skript traegt standardmaessig `scripts.format` und `scripts.lint` in `package.json` ein,
+setzt `devDependencies.prettier` und erzeugt `.prettierrc` sowie `.prettierignore` (falls nicht vorhanden).
 
 Wenn du das explizit einschalten willst:
 
@@ -133,12 +134,14 @@ bash scripts/bootstrap-consumer-workflow.sh \
   --install-command "npm ci" \
   --build-command "npm run build" \
   --lint-command "auto" \
+  --biome-skip-rules "lint/style/useImportType,lint/security/noDangerouslySetInnerHtml,lint/suspicious/noExplicitAny" \
   --start-command "npm run start:prod -- --host 127.0.0.1 --port 4321" \
   --base-url "http://127.0.0.1:4321" \
   --urls "auto"
 ```
 
 `scripts.format` und `scripts.lint` werden standardmaessig geschrieben.
+Zusatzlich werden `devDependencies.prettier` und fehlende Prettier-Konfigdateien angelegt.
 
 Explizites Einschalten (optional):
 
@@ -174,6 +177,7 @@ Unterstuetzte Flags:
 - `--install-command`
 - `--build-command`
 - `--lint-command`
+- `--biome-skip-rules`
 - `--start-command`
 - `--base-url`
 - `--urls`
@@ -185,6 +189,7 @@ Unterstuetzte Flags:
 - `install-command`: Install-Befehl im Ziel-Repo (z. B. `npm ci`)
 - `build-command`: Build-Befehl (Default: `npm run build`)
 - `lint-command`: Lint-Befehl. Default `auto` fuehrt den eingebauten Lint aus diesem Repo aus (Prettier + Biome via `npx`). Du kannst stattdessen einen eigenen Befehl setzen (z. B. `npm run lint` oder `pnpm lint`).
+- `biome-skip-rules`: Komma-separierte Biome-Regel-IDs, die beim eingebauten Lint (`lint-command: auto`) per CLI uebersprungen werden.
 - `start-command`: Startbefehl fuer die App (Default: `npm run start:prod -- --host 127.0.0.1 --port 4173`)
 - `base-url`: URL, unter der die App im Runner erreichbar ist
 - `urls`: Komma-separierte Routen oder `auto` (Default, Sitemap-basiert)
@@ -196,9 +201,16 @@ Unterstuetzte Flags:
 Wenn `lint-command` auf `auto` steht (Default), fuehrt `PR Lint` direkt diese Checks aus:
 
 - `npx --yes prettier@3 --check --ignore-unknown --no-error-on-unmatched-pattern .`
-- `npx --yes @biomejs/biome@1.9.4 lint .`
+- `npx --yes @biomejs/biome@1.9.4 lint . [--skip=<regeln>]`
 
 Dadurch brauchst du im Ziel-Repo kein eigenes `lint`-Script in `package.json`.
+
+Wenn du einzelne Biome-Regeln ohne Projekt-Konfigdatei deaktivieren willst, setze z. B.:
+
+```yaml
+lint-command: auto
+biome-skip-rules: lint/style/useImportType,lint/security/noDangerouslySetInnerHtml,lint/suspicious/noExplicitAny
+```
 
 Wenn du stattdessen deinen Projekt-Linter verwenden willst, setze `lint-command` explizit, z. B.:
 
