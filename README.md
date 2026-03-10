@@ -104,6 +104,14 @@ curl -fsSL https://raw.githubusercontent.com/ananasuu/frontend-flows/main/script
   --urls "auto"
 ```
 
+Das Skript traegt standardmaessig `scripts.format` und `scripts.lint` in `package.json` ein.
+
+Wenn du das explizit einschalten willst:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ananasuu/frontend-flows/main/scripts/bootstrap-consumer-workflow.sh | bash -s -- --add-lint-scripts
+```
+
 ### Option 2: Lokales Skript verwenden
 
 ```bash
@@ -128,6 +136,20 @@ bash scripts/bootstrap-consumer-workflow.sh \
   --start-command "npm run start:prod -- --host 127.0.0.1 --port 4321" \
   --base-url "http://127.0.0.1:4321" \
   --urls "auto"
+```
+
+`scripts.format` und `scripts.lint` werden standardmaessig geschrieben.
+
+Explizites Einschalten (optional):
+
+```bash
+bash scripts/bootstrap-consumer-workflow.sh --add-lint-scripts
+```
+
+Opt-out, falls du keine package.json-Skripte aendern willst:
+
+```bash
+bash scripts/bootstrap-consumer-workflow.sh --no-add-lint-scripts
 ```
 
 Mit `--force` kannst du eine bereits vorhandene Datei ueberschreiben.
@@ -155,6 +177,8 @@ Unterstuetzte Flags:
 - `--start-command`
 - `--base-url`
 - `--urls`
+- `--add-lint-scripts`
+- `--no-add-lint-scripts`
 
 ## Wichtige Inputs des Reusable Workflows
 

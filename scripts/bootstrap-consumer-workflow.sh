@@ -12,6 +12,7 @@ LINT_COMMAND="auto"
 START_COMMAND="npm run start:prod -- --host 127.0.0.1 --port 4173"
 BASE_URL="http://127.0.0.1:4173"
 URLS="auto"
+ADD_LINT_SCRIPTS=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -55,6 +56,14 @@ while [[ $# -gt 0 ]]; do
       URLS="$2"
       shift 2
       ;;
+    --add-lint-scripts)
+      ADD_LINT_SCRIPTS=true
+      shift
+      ;;
+    --no-add-lint-scripts)
+      ADD_LINT_SCRIPTS=false
+      shift
+      ;;
     *)
       echo "Unknown argument: $1"
       echo "Usage: bash bootstrap-consumer-workflow.sh [options]"
@@ -68,6 +77,8 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-command <value>"
       echo "  --base-url <value>"
       echo "  --urls <value>"
+      echo "  --add-lint-scripts"
+      echo "  --no-add-lint-scripts"
       exit 1
       ;;
   esac
@@ -164,9 +175,30 @@ if [[ "$WITH_PROJECT_E2E" == "true" ]]; then
 YAML
 fi
 
+if [[ "$ADD_LINT_SCRIPTS" == "true" ]]; then
+  if ! command -v npm > /dev/null 2>&1; then
+    echo "npm is required for --add-lint-scripts but was not found in PATH."
+    exit 1
+  fi
+
+  PACKAGE_JSON_PATH="$WORKING_DIRECTORY/package.json"
+  if [[ ! -f "$PACKAGE_JSON_PATH" ]]; then
+    echo "Cannot add scripts because package.json was not found at: $PACKAGE_JSON_PATH"
+    exit 1
+  fi
+
+  echo "Adding scripts.format and scripts.lint to $PACKAGE_JSON_PATH"
+  npm --prefix "$WORKING_DIRECTORY" pkg set \
+    scripts.format="npx --yes prettier@3 --write --ignore-unknown --no-error-on-unmatched-pattern ." \
+    scripts.lint="npx --yes prettier@3 --check --ignore-unknown --no-error-on-unmatched-pattern . && npx --yes @biomejs/biome@1.9.4 lint ."
+fi
+
 echo "Created $WORKFLOW_PATH"
 if [[ "$WITH_PROJECT_E2E" == "true" ]]; then
   echo "Included additional project-e2e job."
+fi
+if [[ "$ADD_LINT_SCRIPTS" == "true" ]]; then
+  echo "Added npm scripts: format, lint"
 fi
 echo "Defaults used:"
 echo "  node-version=$NODE_VERSION"
@@ -177,3 +209,4 @@ echo "  lint-command=$LINT_COMMAND"
 echo "  start-command=$START_COMMAND"
 echo "  base-url=$BASE_URL"
 echo "  urls=$URLS"
+echo "  add-lint-scripts=$ADD_LINT_SCRIPTS"
