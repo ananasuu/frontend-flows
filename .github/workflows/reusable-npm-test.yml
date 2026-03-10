@@ -1,0 +1,180 @@
+name: Reusable NPM Test
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: false
+        default: "20"
+      install-command:
+        type: string
+        required: false
+        default: npm ci
+      working-directory:
+        type: string
+        required: false
+        default: .
+      build-command:
+        type: string
+        required: false
+        default: npm run build
+      start-command:
+        type: string
+        required: false
+        default: npm run start:prod -- --host 127.0.0.1 --port 4173
+      base-url:
+        type: string
+        required: false
+        default: http://127.0.0.1:4173
+      urls:
+        type: string
+        required: false
+        default: auto
+      grep:
+        type: string
+        required: false
+        default: ""
+      enable-lighthouse:
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  npm_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout frontend-flows
+        uses: actions/checkout@v4
+        with:
+          repository: ananasuu/frontend-flows
+          ref: main
+          path: frontend-flows
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            frontend-flows/package-lock.json
+            ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Install frontend-flows dependencies
+        working-directory: frontend-flows
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend-flows
+        run: npx playwright install --with-deps
+
+      - name: Build caller app
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}
+
+      - name: Start caller app
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          nohup ${{ inputs.start-command }} > /tmp/frontend-flows-app.log 2>&1 &
+          echo $! > /tmp/frontend-flows-app.pid
+
+      - name: Wait for app
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "${{ inputs.base-url }}" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Application did not start in time"
+          cat /tmp/frontend-flows-app.log || true
+          exit 1
+
+      - name: Resolve test routes
+        id: resolve_routes
+        run: |
+          set -euo pipefail
+
+          BASE_URL="${{ inputs.base-url }}"
+          INPUT_URLS="${{ inputs.urls }}"
+
+          normalize_urls() {
+            tr '\n' ',' | sed 's/,,*/,/g; s/^,//; s/,$//'
+          }
+
+          extract_routes_from_xml() {
+            sed -n 's:.*<loc>\(.*\)</loc>.*:\1:p' | \
+              sed 's#^[[:space:]]*##; s#[[:space:]]*$##' | \
+              sed "s#^$BASE_URL##" | \
+              sed 's#^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]*##' | \
+              sed 's#^$#/#'
+          }
+
+          if [ "$INPUT_URLS" != "auto" ]; then
+            echo "urls=$INPUT_URLS" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          sitemap_index_url="$BASE_URL/sitemap-index.xml"
+          sitemap_url="$BASE_URL/sitemap.xml"
+          routes=""
+
+          if curl -fsS "$sitemap_index_url" > /tmp/sitemap-index.xml; then
+            while IFS= read -r child_sitemap; do
+              if curl -fsS "$child_sitemap" > /tmp/child-sitemap.xml; then
+                child_routes=$(extract_routes_from_xml < /tmp/child-sitemap.xml | normalize_urls || true)
+                if [ -n "$child_routes" ]; then
+                  routes="$routes,$child_routes"
+                fi
+              fi
+            done < <(extract_routes_from_xml < /tmp/sitemap-index.xml)
+          elif curl -fsS "$sitemap_url" > /tmp/sitemap.xml; then
+            routes=$(extract_routes_from_xml < /tmp/sitemap.xml | normalize_urls || true)
+          fi
+
+          routes=$(echo "$routes" | tr ',' '\n' | sed '/^$/d' | sort -u | normalize_urls)
+
+          if [ -z "$routes" ]; then
+            routes="/"
+            echo "No sitemap routes found, falling back to '/'."
+          fi
+
+          echo "Resolved routes: $routes"
+          echo "urls=$routes" >> "$GITHUB_OUTPUT"
+
+      - name: Run Playwright tests
+        working-directory: frontend-flows
+        env:
+          FRONTEND_FLOWS_BASE_URL: ${{ inputs.base-url }}
+          FRONTEND_FLOWS_URLS: ${{ steps.resolve_routes.outputs.urls }}
+          FRONTEND_FLOWS_ENABLE_LIGHTHOUSE: ${{ inputs.enable-lighthouse }}
+        run: |
+          if [ -n "${{ inputs.grep }}" ]; then
+            npx playwright test --grep "${{ inputs.grep }}"
+          else
+            npx playwright test
+          fi
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend-flows/playwright-report/
+          retention-days: 14
+
+      - name: Stop caller app
+        if: ${{ always() }}
+        run: |
+          if [ -f /tmp/frontend-flows-app.pid ]; then
+            kill "$(cat /tmp/frontend-flows-app.pid)" || true
+          fi

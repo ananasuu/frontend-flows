@@ -1,0 +1,45 @@
+name: Reusable PR Lint
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: false
+        default: "20"
+      install-command:
+        type: string
+        required: false
+        default: npm ci
+      working-directory:
+        type: string
+        required: false
+        default: .
+      lint-command:
+        type: string
+        required: false
+        default: npm run lint
+
+jobs:
+  pr_lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Run lint
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.lint-command }}

@@ -34,10 +34,10 @@ on:
         required: false
         default: http://127.0.0.1:4173
       urls:
-        description: Comma-separated routes to test, e.g. "/,/contact,/imprint".
+        description: Comma-separated routes to test, or 'auto' for sitemap-based discovery.
         type: string
         required: false
-        default: /
+        default: auto
       grep:
         description: Optional Playwright grep expression.
         type: string
@@ -57,239 +57,67 @@ on:
 jobs:
   dependency_review:
     name: Dependency Review
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+    uses: ./.github/workflows/reusable-dependency-review.yml
 
   dependencies:
     name: Dependencies
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    uses: ./.github/workflows/reusable-dependencies.yml
+    with:
+      node-version: ${{ inputs.node-version }}
+      install-command: ${{ inputs.install-command }}
+      working-directory: ${{ inputs.working-directory }}
 
-    steps:
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-
-      - name: Checkout frontend-flows
-        uses: actions/checkout@v4
-        with:
-          repository: ananasuu/frontend-flows
-          ref: main
-          path: frontend-flows
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: npm
-          cache-dependency-path: |
-            frontend-flows/package-lock.json
-            ${{ inputs.working-directory }}/package-lock.json
-
-      - name: Install caller dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.install-command }}
-
-      - name: Install frontend-flows dependencies
-        working-directory: frontend-flows
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: frontend-flows
-        run: npx playwright install --with-deps
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  npm_build:
+    name: NPM Build
     needs: dependencies
+    uses: ./.github/workflows/reusable-npm-build.yml
+    with:
+      node-version: ${{ inputs.node-version }}
+      install-command: ${{ inputs.install-command }}
+      working-directory: ${{ inputs.working-directory }}
+      build-command: ${{ inputs.build-command }}
 
-    steps:
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: npm
-          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
-
-      - name: Install caller dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.install-command }}
-
-      - name: Build caller app
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ -n "${{ inputs.build-command }}" ]; then
-            ${{ inputs.build-command }}
-          else
-            echo "No build-command configured, skipping build step"
-          fi
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  pr_lint:
+    name: PR Lint
     needs: dependencies
+    uses: ./.github/workflows/reusable-pr-lint.yml
+    with:
+      node-version: ${{ inputs.node-version }}
+      install-command: ${{ inputs.install-command }}
+      working-directory: ${{ inputs.working-directory }}
+      lint-command: ${{ inputs.lint-command }}
 
-    steps:
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: npm
-          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
-
-      - name: Install caller dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.install-command }}
-
-      - name: Run lint
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ -n "${{ inputs.lint-command }}" ]; then
-            ${{ inputs.lint-command }}
-          else
-            echo "No lint-command configured, skipping lint step"
-          fi
-
-  tests:
-    name: Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  npm_test:
+    name: NPM Test
     needs:
       - dependencies
-      - build
-      - lint
+      - npm_build
+      - pr_lint
+    uses: ./.github/workflows/reusable-npm-test.yml
+    with:
+      node-version: ${{ inputs.node-version }}
+      install-command: ${{ inputs.install-command }}
+      working-directory: ${{ inputs.working-directory }}
+      build-command: ${{ inputs.build-command }}
+      start-command: ${{ inputs.start-command }}
+      base-url: ${{ inputs.base-url }}
+      urls: ${{ inputs.urls }}
+      grep: ${{ inputs.grep }}
+      enable-lighthouse: ${{ inputs.enable-lighthouse }}
 
-    steps:
-      - name: Checkout caller repository
-        uses: actions/checkout@v4
-
-      - name: Checkout frontend-flows
-        uses: actions/checkout@v4
-        with:
-          repository: ananasuu/frontend-flows
-          ref: main
-          path: frontend-flows
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: npm
-          cache-dependency-path: |
-            frontend-flows/package-lock.json
-            ${{ inputs.working-directory }}/package-lock.json
-
-      - name: Install caller dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.install-command }}
-
-      - name: Install frontend-flows dependencies
-        working-directory: frontend-flows
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: frontend-flows
-        run: npx playwright install --with-deps
-
-      - name: Build caller app
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ -n "${{ inputs.build-command }}" ]; then
-            ${{ inputs.build-command }}
-          else
-            echo "No build-command configured, skipping build step"
-          fi
-
-      - name: Start caller app
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          nohup ${{ inputs.start-command }} > /tmp/frontend-flows-app.log 2>&1 &
-          echo $! > /tmp/frontend-flows-app.pid
-
-      - name: Wait for app
-        run: |
-          for i in {1..60}; do
-            if curl -fsS "${{ inputs.base-url }}" > /dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Application did not start in time"
-          cat /tmp/frontend-flows-app.log || true
-          exit 1
-
-      - name: Run Playwright tests
-        working-directory: frontend-flows
-        env:
-          FRONTEND_FLOWS_BASE_URL: ${{ inputs.base-url }}
-          FRONTEND_FLOWS_URLS: ${{ inputs.urls }}
-          FRONTEND_FLOWS_ENABLE_LIGHTHOUSE: ${{ inputs.enable-lighthouse }}
-        run: |
-          if [ -n "${{ inputs.grep }}" ]; then
-            npx playwright test --grep "${{ inputs.grep }}"
-          else
-            npx playwright test
-          fi
-
-      - name: Upload Playwright report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: frontend-flows/playwright-report/
-          retention-days: 14
-
-      - name: Stop caller app
-        if: ${{ always() }}
-        run: |
-          if [ -f /tmp/frontend-flows-app.pid ]; then
-            kill "$(cat /tmp/frontend-flows-app.pid)" || true
-          fi
-
-  consolidate_test_results:
-    name: Consolidate Test Results
+  checks:
+    name: Checks
     if: ${{ always() }}
-    runs-on: ubuntu-latest
     needs:
       - dependency_review
       - dependencies
-      - build
-      - lint
-      - tests
-
-    steps:
-      - name: Summarize results
-        run: |
-          echo "dependency_review=${{ needs.dependency_review.result }}"
-          echo "dependencies=${{ needs.dependencies.result }}"
-          echo "build=${{ needs.build.result }}"
-          echo "lint=${{ needs.lint.result }}"
-          echo "tests=${{ needs.tests.result }}"
-
-          for status in \
-            "${{ needs.dependency_review.result }}" \
-            "${{ needs.dependencies.result }}" \
-            "${{ needs.build.result }}" \
-            "${{ needs.lint.result }}" \
-            "${{ needs.tests.result }}"; do
-            if [ "$status" = "failure" ] || [ "$status" = "cancelled" ]; then
-              echo "One or more required jobs failed"
-              exit 1
-            fi
-          done
-
-          echo "All required jobs passed (or were skipped when not applicable)."
+      - npm_build
+      - pr_lint
+      - npm_test
+    uses: ./.github/workflows/reusable-checks.yml
+    with:
+      dependency-review-result: ${{ needs.dependency_review.result }}
+      dependencies-result: ${{ needs.dependencies.result }}
+      npm-build-result: ${{ needs.npm_build.result }}
+      pr-lint-result: ${{ needs.pr_lint.result }}
+      npm-test-result: ${{ needs.npm_test.result }}

@@ -1,0 +1,47 @@
+name: Reusable Checks
+
+on:
+  workflow_call:
+    inputs:
+      dependency-review-result:
+        type: string
+        required: true
+      dependencies-result:
+        type: string
+        required: true
+      npm-build-result:
+        type: string
+        required: true
+      pr-lint-result:
+        type: string
+        required: true
+      npm-test-result:
+        type: string
+        required: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Summarize results
+        run: |
+          echo "dependency_review=${{ inputs.dependency-review-result }}"
+          echo "dependencies=${{ inputs.dependencies-result }}"
+          echo "npm_build=${{ inputs.npm-build-result }}"
+          echo "pr_lint=${{ inputs.pr-lint-result }}"
+          echo "npm_test=${{ inputs.npm-test-result }}"
+
+          for status in \
+            "${{ inputs.dependency-review-result }}" \
+            "${{ inputs.dependencies-result }}" \
+            "${{ inputs.npm-build-result }}" \
+            "${{ inputs.pr-lint-result }}" \
+            "${{ inputs.npm-test-result }}"; do
+            if [ "$status" = "failure" ] || [ "$status" = "cancelled" ]; then
+              echo "One or more required jobs failed"
+              exit 1
+            fi
+          done
+
+          echo "All required jobs passed (or were skipped when not applicable)."

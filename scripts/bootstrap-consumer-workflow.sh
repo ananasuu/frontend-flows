@@ -11,7 +11,7 @@ BUILD_COMMAND="npm run build"
 LINT_COMMAND="npm run lint"
 START_COMMAND="npm run start:prod -- --host 127.0.0.1 --port 4173"
 BASE_URL="http://127.0.0.1:4173"
-URLS="/,/about,/contact"
+URLS="auto"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

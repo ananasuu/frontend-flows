@@ -1,0 +1,16 @@
+name: Reusable Dependency Review
+
+on:
+  workflow_call:
+
+jobs:
+  dependency_review:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4

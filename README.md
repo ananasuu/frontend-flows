@@ -18,6 +18,10 @@ Die Test-Suite in `tests/all-pages.test.ts` laeuft fuer eine konfigurierbare Rou
 - Keine Axe-Verstoesse (Chromium)
 - Optional Lighthouse-Scores (Chromium, wenn aktiviert)
 
+`FRONTEND_FLOWS_URLS` legt fest, welche Seiten getestet werden.
+Im reusable Workflow ist `urls: auto` der Default: Routen werden dabei automatisch aus der Sitemap der Ziel-App gelesen.
+Wenn keine Sitemap gefunden wird, faellt der Workflow automatisch auf `/` zurueck.
+
 ## Dieses Repo lokal verwenden
 
 ```bash
@@ -31,6 +35,15 @@ Optionale Lighthouse-Pruefung:
 ```bash
 FRONTEND_FLOWS_ENABLE_LIGHTHOUSE=true npm run test:performance
 ```
+
+## Lokale Checks erzwingen (Husky)
+
+Dieses Repo ist so eingerichtet, dass lokale Git-Hooks Quality-Checks erzwingen:
+
+- `pre-commit`: `npm run git:pre-commit` (nutzt `lint-staged`, also Prettier/Biome auf geaenderten Dateien)
+- `pre-push`: `npm run lint`
+
+Nach `npm install` werden Hooks ueber `prepare` automatisch eingerichtet.
 
 ## In anderen Repositories verwenden (empfohlen)
 
@@ -55,11 +68,14 @@ jobs:
       lint-command: npm run lint
       start-command: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url: http://127.0.0.1:4173
-      urls: "/,/about,/contact,/impressum"
+      urls: auto
       enable-lighthouse: false
 ```
 
 Danach entstehen die GitHub Actions-Laeufe automatisch im Ziel-Repository bei Push und Pull Request.
+
+Hinweis: Im Ziel-Repo reicht ein Sammel-Workflow (ein zentraler Einstieg per `uses`).
+Die einzelnen Checks (`Dependency Review`, `Dependencies`, `NPM Build`, `PR Lint`, `NPM Test`, `Checks`) werden trotzdem getrennt angezeigt.
 
 ## Workflow-Dateien automatisch erzeugen
 
@@ -85,7 +101,7 @@ Mit eigenen Defaults fuer Node, Base URL und Routen:
 curl -fsSL https://raw.githubusercontent.com/ananasuu/frontend-flows/main/scripts/bootstrap-consumer-workflow.sh | bash -s -- \
   --node-version 22 \
   --base-url http://127.0.0.1:4321 \
-  --urls "/,/de,/kontakt"
+  --urls "auto"
 ```
 
 ### Option 2: Lokales Skript verwenden
@@ -111,7 +127,7 @@ bash scripts/bootstrap-consumer-workflow.sh \
   --lint-command "npm run lint" \
   --start-command "npm run start:prod -- --host 127.0.0.1 --port 4321" \
   --base-url "http://127.0.0.1:4321" \
-  --urls "/,/about,/contact,/impressum"
+  --urls "auto"
 ```
 
 Mit `--force` kannst du eine bereits vorhandene Datei ueberschreiben.
@@ -147,7 +163,7 @@ Unterstuetzte Flags:
 - `lint-command`: Lint-Befehl (Default: `npm run lint`)
 - `start-command`: Startbefehl fuer die App (Default: `npm run start:prod -- --host 127.0.0.1 --port 4173`)
 - `base-url`: URL, unter der die App im Runner erreichbar ist
-- `urls`: Komma-separierte Routen
+- `urls`: Komma-separierte Routen oder `auto` (Default, Sitemap-basiert)
 - `grep`: Optionales Playwright-Filterpattern
 - `enable-lighthouse`: `true` oder `false`
 
@@ -178,12 +194,26 @@ Der reusable Workflow erzeugt getrennte Checks:
 
 - `Dependency Review` (bei Pull Requests)
 - `Dependencies`
-- `Build`
-- `Lint`
-- `Tests`
-- `Consolidate Test Results`
+- `NPM Build`
+- `PR Lint`
+- `NPM Test`
+- `Checks`
 
 So bekommst du nicht nur einen einzelnen Sammel-Job, sondern klare Einzel-Checks pro Bereich.
+
+## Mapping zu deinen bisherigen Workflow-Dateien
+
+Wenn du vorher getrennte Workflows wie `checks`, `dependencies`, `deploy`, `npm build`, `npm test`, `pr lint`, `visual test` hattest, ist die Zuordnung in diesem Setup so:
+
+- `checks` -> `Consolidate Test Results`
+- `dependencies` -> `Dependency Review` und `Dependencies`
+- `npm build` -> `NPM Build`
+- `npm test` -> `NPM Test`
+- `pr lint` -> `PR Lint`
+- `deploy` -> bewusst nicht enthalten (Deployment bleibt im Ziel-Repo separat)
+- `visual test` -> bewusst nicht enthalten
+
+`visual test` wird in diesem Setup absichtlich nicht ausgefuehrt.
 
 ## Typische Varianten
 
@@ -231,7 +261,7 @@ jobs:
       lint-command: npm run lint
       start-command: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url: http://127.0.0.1:4173
-      urls: "/,/about,/contact"
+      urls: auto
       enable-lighthouse: false
 
   project-e2e:
@@ -294,6 +324,41 @@ Damit hast du im Ziel-Repo getrennte Checks fuer:
 
 - Standardisierte `frontend-flows` Qualitaetspruefungen
 - Eure projektspezifischen End-to-End-Flows
+
+## Was muss im Ziel-Repo fuer E2E installiert sein?
+
+Fuer den `frontend-flows`-Teil musst du im Ziel-Repo keine zusaetzlichen Test-Libraries installieren.
+Die eigentliche Playwright- und Axe/Lighthouse-Logik kommt aus diesem Repository und wird im CI-Run mit ausgecheckt.
+
+Im Ziel-Repo benoetigst du nur:
+
+- Eine funktionierende Node-Installation im CI (kommt ueber `actions/setup-node`)
+- Ein funktionierendes Install-Kommando (z. B. `npm ci`, alternativ `pnpm install --frozen-lockfile`)
+- Einen Build- und Start-Flow, den der Workflow aufrufen kann (`build-command`, `start-command`)
+- Falls du eigene projektspezifische E2E-Tests zusaetzlich laufen laesst: dort die fuer diese Tests benoetigten Dependencies
+
+Kurz gesagt:
+
+- Nur `frontend-flows` nutzen: keine extra E2E-Pakete im Ziel-Repo erforderlich.
+- Eigene E2E-Suite im Ziel-Repo: dafuer musst du die benoetigten Pakete im Ziel-Repo selbst installieren.
+
+## Noetige Dateistruktur im Ziel-Repo
+
+Minimal benoetigt:
+
+- `.github/workflows/frontend-tests.yml` (oder anderer Workflow-Name mit `uses` auf `frontend-flows`)
+- `package.json` mit den referenzierten Skripten (mindestens fuer `install-command`, `build-command`, `start-command`, optional `lint-command`)
+- Ein passender Lockfile zum Paketmanager (`package-lock.json`, `pnpm-lock.yaml` oder `yarn.lock`)
+
+Empfohlene Struktur:
+
+- Monorepo: `working-directory` auf das Frontend-Paket setzen (z. B. `apps/web`)
+- Optional eigene E2E-Tests in einem klaren Ordner (z. B. `tests/e2e`) inklusive eigener Playwright-Konfiguration im Ziel-Repo
+
+Zusatz fuer automatische URL-Erkennung (`urls: auto`):
+
+- Die laufende App sollte eine Sitemap unter `/sitemap-index.xml` oder `/sitemap.xml` bereitstellen.
+- Falls keine Sitemap verfuegbar ist, wird automatisch nur `/` getestet.
 
 ## Hinweise
 

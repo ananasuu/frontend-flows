@@ -1,0 +1,45 @@
+name: Reusable NPM Build
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: false
+        default: "20"
+      install-command:
+        type: string
+        required: false
+        default: npm ci
+      working-directory:
+        type: string
+        required: false
+        default: .
+      build-command:
+        type: string
+        required: false
+        default: npm run build
+
+jobs:
+  npm_build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Build caller app
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}

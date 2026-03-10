@@ -1,0 +1,54 @@
+name: Reusable Dependencies
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: false
+        default: "20"
+      install-command:
+        type: string
+        required: false
+        default: npm ci
+      working-directory:
+        type: string
+        required: false
+        default: .
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout frontend-flows
+        uses: actions/checkout@v4
+        with:
+          repository: ananasuu/frontend-flows
+          ref: main
+          path: frontend-flows
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            frontend-flows/package-lock.json
+            ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Install frontend-flows dependencies
+        working-directory: frontend-flows
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend-flows
+        run: npx playwright install --with-deps
