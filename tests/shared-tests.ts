@@ -1,32 +1,29 @@
-import { expect as expectA11y, test as testA11y } from './fixtures/a11y.ts';
-import { lighthouseTest, thresholds } from './fixtures/performance.ts';
+import { expect, test } from "@playwright/test";
+import { makeAxeBuilder } from "./fixtures/a11y.ts";
+import { thresholds } from "./fixtures/performance.ts";
 
 export async function pageTests(url: string, tags: string[]): Promise<void> {
-	testA11y.describe('a11y', { tag: [...tags, '@a11y'] }, () => {
-		testA11y(`a11y test for ${url}`, async ({ page, makeAxeBuilder }) => {
-			await page.goto(url);
+  test.describe("a11y", { tag: [...tags, "@a11y"] }, () => {
+    test(`a11y test for ${url}`, async ({ page }) => {
+      await page.goto(url);
 
-			const accessibilityScanResults = await makeAxeBuilder()
-				// Automatically uses the shared AxeBuilder configuration,
-				// but supports additional test-specific configuration too
-				// .include('#specific-element-under-test')
-				.analyze();
+      const accessibilityScanResults = await makeAxeBuilder(page).analyze();
 
-			expectA11y(accessibilityScanResults.violations).toEqual([]);
-		});
-	});
+      expect(accessibilityScanResults.violations).toEqual([]);
+    });
+  });
 
-	lighthouseTest.describe('performance', { tag: [...tags, '@performance'] }, () => {
-		lighthouseTest(`lighthouse tests of ${url}`, async ({ page, port }) => {
-			await page.goto(url);
+  test.describe("performance", { tag: [...tags, "@performance"] }, () => {
+    test(`lighthouse tests of ${url}`, async ({ page }, testInfo) => {
+      await page.goto(url);
 
-			// Dynamischer Import von playAudit
-			const { playAudit } = await import('playwright-lighthouse');
-			await playAudit({
-				page,
-				thresholds: thresholds,
-				port,
-			});
-		});
-	});
+      const { playAudit } = await import("playwright-lighthouse");
+      const port = testInfo.project.name === "chromium-dark" ? 9223 : 9222;
+      await playAudit({
+        page,
+        thresholds,
+        port,
+      });
+    });
+  });
 }

@@ -4,13 +4,13 @@
   "description": "My reusable setup for frontend testing and workflows.",
   "main": "index.js",
   "scripts": {
-    "lint": "prettier --check --ignore-unknown --no-error-on-unmatched-pattern . && biome ci .",
-    "lint:fix": "prettier --write --ignore-unknown --no-error-on-unmatched-pattern .&& biome check . --write",
+    "lint": "prettier --check --ignore-unknown --no-error-on-unmatched-pattern . && biome lint .",
+    "lint:fix": "prettier --write --ignore-unknown --no-error-on-unmatched-pattern .",
     "git:pre-commit": "lint-staged",
     "git:pre-push": "npm test",
     "prepare": "husky",
     "test": "npx playwright test",
-    "test:visual": "npx chromatic --exit-zero-on-changes --playwright --project-token=$CHROMATIC_PROJECT_TOKEN",
+    "test:list": "npx playwright test --list",
     "test:a11y": "npx playwright test -g 'a11y'",
     "test:performance": "npx playwright test -g 'performance'"
   },
@@ -27,11 +27,15 @@
   },
   "homepage": "https://github.com/ananasuu/frontend-flows#readme",
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@biomejs/biome": "^1.9.4",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
-    "axe-playwright": "^2.2.2",
     "eslint": "^10.0.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "playwright": "^1.58.2",
+    "playwright-lighthouse": "^4.0.0",
     "prettier": "^3.8.1"
   }
 }

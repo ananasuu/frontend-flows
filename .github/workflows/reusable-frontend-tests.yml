@@ -1,0 +1,137 @@
+name: Reusable Frontend Tests
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version used in the caller repository.
+        type: string
+        required: false
+        default: "20"
+      install-command:
+        description: Install command for the caller repository.
+        type: string
+        required: false
+        default: npm ci
+      build-command:
+        description: Optional build command for the caller repository.
+        type: string
+        required: false
+        default: ""
+      start-command:
+        description: Start command for the caller application.
+        type: string
+        required: true
+      base-url:
+        description: Base URL where the started application is reachable.
+        type: string
+        required: false
+        default: http://127.0.0.1:4173
+      urls:
+        description: Comma-separated routes to test, e.g. "/,/contact,/imprint".
+        type: string
+        required: false
+        default: /
+      grep:
+        description: Optional Playwright grep expression.
+        type: string
+        required: false
+        default: ""
+      working-directory:
+        description: Working directory of the caller frontend project.
+        type: string
+        required: false
+        default: .
+      enable-lighthouse:
+        description: Enable lighthouse checks (true/false).
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout frontend-flows
+        uses: actions/checkout@v4
+        with:
+          repository: ananasuu/frontend-flows
+          ref: main
+          path: frontend-flows
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            frontend-flows/package-lock.json
+            ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install caller dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.install-command }}
+
+      - name: Install frontend-flows dependencies
+        working-directory: frontend-flows
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend-flows
+        run: npx playwright install --with-deps
+
+      - name: Build caller app
+        if: ${{ inputs.build-command != '' }}
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}
+
+      - name: Start caller app
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          nohup ${{ inputs.start-command }} > /tmp/frontend-flows-app.log 2>&1 &
+          echo $! > /tmp/frontend-flows-app.pid
+
+      - name: Wait for app
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "${{ inputs.base-url }}" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Application did not start in time"
+          cat /tmp/frontend-flows-app.log || true
+          exit 1
+
+      - name: Run Playwright tests
+        working-directory: frontend-flows
+        env:
+          FRONTEND_FLOWS_BASE_URL: ${{ inputs.base-url }}
+          FRONTEND_FLOWS_URLS: ${{ inputs.urls }}
+          FRONTEND_FLOWS_ENABLE_LIGHTHOUSE: ${{ inputs.enable-lighthouse }}
+        run: |
+          if [ -n "${{ inputs.grep }}" ]; then
+            npx playwright test --grep "${{ inputs.grep }}"
+          else
+            npx playwright test
+          fi
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend-flows/playwright-report/
+          retention-days: 14
+
+      - name: Stop caller app
+        if: ${{ always() }}
+        run: |
+          if [ -f /tmp/frontend-flows-app.pid ]; then
+            kill "$(cat /tmp/frontend-flows-app.pid)" || true
+          fi

@@ -2,6 +2,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const isCI = !!process.env.CI;
+const baseURL = process.env.FRONTEND_FLOWS_BASE_URL || "http://127.0.0.1:4173";
+const webServerCommand = process.env.FRONTEND_FLOWS_WEB_SERVER_COMMAND;
+const webServerUrl = process.env.FRONTEND_FLOWS_WEB_SERVER_URL || baseURL;
 
 export default defineConfig({
   testDir: "tests",
@@ -12,7 +15,7 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: isCI ? "github" : "html",
   use: {
-    baseURL: "http://localhost:4321",
+    baseURL,
     trace: "on-first-retry",
     reducedMotion: "reduce",
   },
@@ -54,9 +57,13 @@ export default defineConfig({
       use: { ...devices["Desktop Safari"] },
     },
   ],
-  webServer: {
-    command: "npm run build && npm run preview -- --port 4321 --host",
-    url: "http://localhost:4321",
-    reuseExistingServer: !isCI,
-  },
+  ...(webServerCommand
+    ? {
+        webServer: {
+          command: webServerCommand,
+          url: webServerUrl,
+          reuseExistingServer: !isCI,
+        },
+      }
+    : {}),
 });
