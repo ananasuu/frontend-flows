@@ -14,19 +14,20 @@ on:
         required: false
         default: npm ci
       build-command:
-        description: Optional build command for the caller repository.
+        description: Build command for the caller repository.
         type: string
         required: false
-        default: ""
+        default: npm run build
       lint-command:
-        description: Optional lint command for the caller repository.
+        description: Lint command for the caller repository.
         type: string
         required: false
-        default: ""
+        default: npm run lint
       start-command:
         description: Start command for the caller application.
         type: string
-        required: true
+        required: false
+        default: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url:
         description: Base URL where the started application is reachable.
         type: string

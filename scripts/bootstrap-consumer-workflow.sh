@@ -4,6 +4,14 @@ set -euo pipefail
 WORKFLOW_PATH=".github/workflows/frontend-tests.yml"
 FORCE=false
 WITH_PROJECT_E2E=false
+NODE_VERSION="20"
+WORKING_DIRECTORY="."
+INSTALL_COMMAND="npm ci"
+BUILD_COMMAND="npm run build"
+LINT_COMMAND="npm run lint"
+START_COMMAND="npm run start:prod -- --host 127.0.0.1 --port 4173"
+BASE_URL="http://127.0.0.1:4173"
+URLS="/,/about,/contact"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -15,9 +23,51 @@ while [[ $# -gt 0 ]]; do
       FORCE=true
       shift
       ;;
+    --node-version)
+      NODE_VERSION="$2"
+      shift 2
+      ;;
+    --working-directory)
+      WORKING_DIRECTORY="$2"
+      shift 2
+      ;;
+    --install-command)
+      INSTALL_COMMAND="$2"
+      shift 2
+      ;;
+    --build-command)
+      BUILD_COMMAND="$2"
+      shift 2
+      ;;
+    --lint-command)
+      LINT_COMMAND="$2"
+      shift 2
+      ;;
+    --start-command)
+      START_COMMAND="$2"
+      shift 2
+      ;;
+    --base-url)
+      BASE_URL="$2"
+      shift 2
+      ;;
+    --urls)
+      URLS="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown argument: $1"
-      echo "Usage: bash bootstrap-consumer-workflow.sh [--with-project-e2e] [--force]"
+      echo "Usage: bash bootstrap-consumer-workflow.sh [options]"
+      echo "  --with-project-e2e"
+      echo "  --force"
+      echo "  --node-version <value>"
+      echo "  --working-directory <value>"
+      echo "  --install-command <value>"
+      echo "  --build-command <value>"
+      echo "  --lint-command <value>"
+      echo "  --start-command <value>"
+      echo "  --base-url <value>"
+      echo "  --urls <value>"
       exit 1
       ;;
   esac
@@ -31,7 +81,7 @@ fi
 
 mkdir -p .github/workflows
 
-cat > "$WORKFLOW_PATH" <<'YAML'
+cat > "$WORKFLOW_PATH" <<YAML
 name: Frontend Quality
 
 on:
@@ -43,14 +93,14 @@ jobs:
   frontend-flows:
     uses: ananasuu/frontend-flows/.github/workflows/reusable-frontend-tests.yml@main
     with:
-      node-version: "20"
-      working-directory: .
-      install-command: npm ci
-      build-command: npm run build
-      lint-command: npm run lint
-      start-command: npm run preview -- --host 127.0.0.1 --port 4173
-      base-url: http://127.0.0.1:4173
-      urls: "/,/about,/contact"
+      node-version: "$NODE_VERSION"
+      working-directory: $WORKING_DIRECTORY
+      install-command: $INSTALL_COMMAND
+      build-command: $BUILD_COMMAND
+      lint-command: $LINT_COMMAND
+      start-command: $START_COMMAND
+      base-url: $BASE_URL
+      urls: "$URLS"
       enable-lighthouse: false
 YAML
 
@@ -81,7 +131,7 @@ if [[ "$WITH_PROJECT_E2E" == "true" ]]; then
 
       - name: Start app
         run: |
-          nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/project-e2e.log 2>&1 &
+          nohup npm run start:prod -- --host 127.0.0.1 --port 4173 > /tmp/project-e2e.log 2>&1 &
           echo $! > /tmp/project-e2e.pid
 
       - name: Wait for app
@@ -118,3 +168,12 @@ echo "Created $WORKFLOW_PATH"
 if [[ "$WITH_PROJECT_E2E" == "true" ]]; then
   echo "Included additional project-e2e job."
 fi
+echo "Defaults used:"
+echo "  node-version=$NODE_VERSION"
+echo "  working-directory=$WORKING_DIRECTORY"
+echo "  install-command=$INSTALL_COMMAND"
+echo "  build-command=$BUILD_COMMAND"
+echo "  lint-command=$LINT_COMMAND"
+echo "  start-command=$START_COMMAND"
+echo "  base-url=$BASE_URL"
+echo "  urls=$URLS"

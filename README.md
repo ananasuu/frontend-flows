@@ -53,7 +53,7 @@ jobs:
       install-command: npm ci
       build-command: npm run build
       lint-command: npm run lint
-      start-command: npm run preview -- --host 127.0.0.1 --port 4173
+      start-command: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url: http://127.0.0.1:4173
       urls: "/,/about,/contact,/impressum"
       enable-lighthouse: false
@@ -79,6 +79,15 @@ Mit zusaetzlichem projektspezifischem E2E-Job:
 curl -fsSL https://raw.githubusercontent.com/ananasuu/frontend-flows/main/scripts/bootstrap-consumer-workflow.sh | bash -s -- --with-project-e2e
 ```
 
+Mit eigenen Defaults fuer Node, Base URL und Routen:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ananasuu/frontend-flows/main/scripts/bootstrap-consumer-workflow.sh | bash -s -- \
+  --node-version 22 \
+  --base-url http://127.0.0.1:4321 \
+  --urls "/,/de,/kontakt"
+```
+
 ### Option 2: Lokales Skript verwenden
 
 ```bash
@@ -91,17 +100,52 @@ Optional mit zusaetzlichem E2E-Job:
 bash scripts/bootstrap-consumer-workflow.sh --with-project-e2e
 ```
 
+Mit benutzerdefinierten Werten:
+
+```bash
+bash scripts/bootstrap-consumer-workflow.sh \
+  --node-version 22 \
+  --working-directory apps/web \
+  --install-command "npm ci" \
+  --build-command "npm run build" \
+  --lint-command "npm run lint" \
+  --start-command "npm run start:prod -- --host 127.0.0.1 --port 4321" \
+  --base-url "http://127.0.0.1:4321" \
+  --urls "/,/about,/contact,/impressum"
+```
+
 Mit `--force` kannst du eine bereits vorhandene Datei ueberschreiben.
 Das Skript erzeugt:
 
 - `.github/workflows/frontend-tests.yml`
 
+Danach im Ziel-Repo:
+
+- Datei pruefen
+- committen
+- pushen
+
+Erst danach startet GitHub Actions im Ziel-Repo mit der neuen Workflow-Datei.
+
+Unterstuetzte Flags:
+
+- `--with-project-e2e`
+- `--force`
+- `--node-version`
+- `--working-directory`
+- `--install-command`
+- `--build-command`
+- `--lint-command`
+- `--start-command`
+- `--base-url`
+- `--urls`
+
 ## Wichtige Inputs des Reusable Workflows
 
 - `install-command`: Install-Befehl im Ziel-Repo (z. B. `npm ci`)
-- `build-command`: Optionaler Build-Befehl (z. B. `npm run build`)
-- `lint-command`: Optionaler Lint-Befehl (z. B. `npm run lint`)
-- `start-command`: Startbefehl fuer die App (muss gesetzt sein)
+- `build-command`: Build-Befehl (Default: `npm run build`)
+- `lint-command`: Lint-Befehl (Default: `npm run lint`)
+- `start-command`: Startbefehl fuer die App (Default: `npm run start:prod -- --host 127.0.0.1 --port 4173`)
 - `base-url`: URL, unter der die App im Runner erreichbar ist
 - `urls`: Komma-separierte Routen
 - `grep`: Optionales Playwright-Filterpattern
@@ -109,11 +153,11 @@ Das Skript erzeugt:
 
 ## Wann darf Build optional sein?
 
-`build-command` kann leer bleiben, wenn dein Testlauf keine frischen Build-Artefakte benoetigt.
+`build-command` kann angepasst werden, wenn dein Testlauf andere Build-Anforderungen hat.
 
 Typische Faelle:
 
-- Die App wird fuer den Test direkt im Dev-Modus gestartet.
+- Die App wird fuer den Test direkt im Dev-Modus gestartet (z. B. mit `npm run start`).
 - Ihr testet gegen eine bereits laufende Umgebung (z. B. Staging/Preview-URL).
 - Das Projekt hat keinen separaten Build-Schritt.
 
@@ -161,12 +205,6 @@ Lighthouse aktivieren:
 enable-lighthouse: true
 ```
 
-Nur die `frontend-flows` A11y-Tests:
-
-```yaml
-grep: "@a11y"
-```
-
 ## Zusaetzliche E2E-Tests im Ziel-Repo einbinden
 
 Du kannst im Ziel-Repo eigene E2E-Tests zusaetzlich laufen lassen, unabhaengig von `frontend-flows`.
@@ -191,7 +229,7 @@ jobs:
       install-command: npm ci
       build-command: npm run build
       lint-command: npm run lint
-      start-command: npm run preview -- --host 127.0.0.1 --port 4173
+      start-command: npm run start:prod -- --host 127.0.0.1 --port 4173
       base-url: http://127.0.0.1:4173
       urls: "/,/about,/contact"
       enable-lighthouse: false
@@ -220,7 +258,7 @@ jobs:
 
       - name: Start app
         run: |
-          nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/project-e2e.log 2>&1 &
+          nohup npm run start:prod -- --host 127.0.0.1 --port 4173 > /tmp/project-e2e.log 2>&1 &
           echo $! > /tmp/project-e2e.pid
 
       - name: Wait for app
